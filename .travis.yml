@@ -1,0 +1,22 @@
+# Config file for automatic testing at travis-ci.org
+
+language: python
+python:
+  - "3.7"
+dist: trusty
+notifications:
+  email: false
+install:
+  - python setup.py install
+  - pip install coverage
+  - pip install coveralls
+  - pip install pytest
+  - pip install pytest-cov
+  - pip install pytest-faulthandler
+  - pip install pytest-mock
+  - pip install pytest-qt
+  - pip install pytest-xvfb
+script:
+  - py.test -s -v --cov=./
+after_success:
+  - coveralls
