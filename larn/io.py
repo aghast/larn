@@ -68,9 +68,11 @@
     #include "ansiterm.h"
     """
 
+import os
+import sys
 import time
 
-from aghast.util import *
+from aghast.util import export, static
 
 from .ansiterm import *
 from .larncons import *
@@ -78,11 +80,8 @@ from .larndata import *
 from .larnfunc import *
 
 
-lfd :int = 0            # output file numbers
-export('lfd')
-
 fd :int = 0             # input file numbers
-export('fd')
+export('fd')            # Used in 2 other places, I believe. diag.c and scores.c
 
 
 static()
@@ -110,7 +109,7 @@ def setupvt100() -> None:
     """
     clear()
     setscroll()
-    scbr()      # system("stty cbreak -echo");
+    scbr()
 
 @export
 def clearvt100() -> None:
@@ -118,7 +117,7 @@ def clearvt100() -> None:
 
         Attributes off, clear screen, unset scrolling region, restore tty mode 
     """
-    ansiterm_clean_up()
+    ansiterm.clean_up()
     resetscroll()
     clear()
     sncbr()     # system("stty -cbreak echo");
@@ -149,7 +148,7 @@ def scbr() -> None:
     # Set up to use the direct console input call which may read from the
     # keypad
     global getchfn
-    getchfn = ansiterm_getch
+    getchfn = ansiterm.getch
 
 @export
 def sncbr() -> None:
@@ -159,7 +158,7 @@ def sncbr() -> None:
     """
     # Set up to use the direct console input call with echo, getche()
     global getchfn
-    getchfn = ansiterm_getche
+    getchfn = ansiterm.getche
 
 @export
 def newgame() -> None:
@@ -168,14 +167,14 @@ def newgame() -> None:
     global c
     for i in range(100):
         c[i] = 0
-	
+    
     global initialtime
     initialtime = trunc(time.time())
-	srand(initialtime)
-	lcreat(0)        # open buffering for output to terminal 
+    srand(initialtime)
+    lcreat(0)        # open buffering for output to terminal 
 
 @export
-lprintf(format:str, *args: Any) -> None:
+def lprintf(format:str, *args: Any) -> None:
     """ Printf to the output buffer.
 
         Enter with the format string in "format", as per printf() usage and any
@@ -191,7 +190,7 @@ lprintf(format:str, *args: Any) -> None:
         lprc(ch)
 
 @export
-lprint(longint:int) -> None:
+def lprint(longint:int) -> None:
     """ Send binary integer to output buffer.
 
         +---------+---------+---------+---------+
@@ -213,11 +212,10 @@ lprint(longint:int) -> None:
     lpnt += 1
     lpbuf[lpnt] = 255 & (longint >> 8)
     lpnt += 1
-	lpbuf[lpnt] = 255 & (longint >> 16)
+    lpbuf[lpnt] = 255 & (longint >> 16)
     lpnt += 1
     lpbuf[lpnt] = 255 & (longint >> 24)
     lpnt += 1
-}
 
 @export
 def lprc(ch: str) -> None:
@@ -251,6 +249,7 @@ def lgetc() -> str:
         Returns "" if EOF, otherwise the character.
     """
 
+    global inbuffer
     global ipoint
     if ipoint != iepoint:
         ch = inbuffer[ipoint]
@@ -260,7 +259,6 @@ def lgetc() -> str:
     if iepoint != MAXIBUF:
         return 0
 
-    global inbuffer
     global fd
     try:
         inbuffer = fd.read(MAXIBUF)
@@ -297,703 +295,531 @@ def larint() -> int:
     i |= (255 & lgetc()) << 24
     return i
 
-
-"""
-===========================================================================
-                    C SOURCE CODE BELOW THIS POINT
-===========================================================================
-
-
-/*
- *  lrfill(address,number)          put input bytes into a buffer
- *      char *address;
- *      int number;
- *
- *  Reads "number" bytes into the buffer pointed to by "address".
- *  Returns nothing of value
- */
-void lrfill(char * adr, int num)
-{
-	char *pnt;
-	int num2;
-
-    while (num)
-        {
-        if (iepoint == ipoint)
-            {
-            if (num>5) /* fast way */
-                {
-                if (read(fd,adr,num) != num)
-                    write(2,"error reading from input file\n",30);
-                num=0;
-                }
-            else { *adr++ = lgetc();  --num; }
-            }
-        else
-            {
-            num2 = iepoint-ipoint;  /*  # of bytes left in the buffer   */
-            if (num2 > num) num2=num;
-            pnt = inbuffer+ipoint;  num -= num2;  ipoint += num2;
-            while (num2--)  *adr++ = *pnt++;
-            }
-        }
-}
-
-
-
-/*
- *  char *lgetw()           Get a whitespace ended word from input
- *
- *  Returns pointer to a buffer that contains word.  If EOF, returns a NULL
- */
-char * lgetw(void)
-{
-	char *lgp, cc;
-	int n = LINBUFSIZE, quote = 0;
-
-    lgp = lgetwbuf;
-    do cc=lgetc();  while ((cc <= 32) && (cc > '\0'));  /* eat whitespace */
-    for ( ; ; --n,cc=lgetc())
-        {
-        if ((cc== '\0') && (lgp==lgetwbuf))  return(NULL);   /* EOF */
-        if ((n<=1) || ((cc<=32) && (quote==0))) { 
-		*lgp= '\0';
-		return lgetwbuf; 
-	}
-        if (cc != '"') *lgp++ = cc;   else quote ^= 1;
-        }
-}
-
-
-
-/*
- *  char *lgetl()       Function to read in a line ended by newline or EOF
- *
- *  Returns pointer to a buffer that contains the line.  If EOF, returns NULL
- */
-char * lgetl(void)
-{
-	int i = LINBUFSIZE, ch;
-	char *str = lgetwbuf;
-
-    for ( ; ; --i) {
-        *str++ = ch = lgetc();
-        if (ch == 0) {
-            if (str == lgetwbuf+1)
-                return(NULL);   /* EOF */
-        ot: *str = 0;
-            return(lgetwbuf);   /* line ended by EOF */
-        }
-        if ((ch=='\n') || (i<=1))
-            goto ot;        /* line ended by \n */
-    }
-}
-
-
-
-/*
- *  lcreat(filename)            Create a new file for write
- *      char *filename;
- *
- *  lcreat((char*)0); means to the terminal
- *  Returns -1 if error, otherwise the file descriptor opened.
- */
-int lcreat(char *str)
-{
-    lpnt = lpbuf;   lpend = lpbuf+BUFBIG;
-    if (str==NULL) return(lfd=1);
-    if ((lfd=creat(str,0644)) < 0) 
-        {
-        lfd=1; lprintf("error creating file <%s>\n",str); lflush(); return(-1);
-        }
-
-    setmode(lfd, O_BINARY);
-
-    return lfd;
-}
-
-
-
-/*
- *  lopen(filename)         Open a file for read
- *      char *filename;
- *
- *  lopen(0) means from the terminal
- *  Returns -1 if error, otherwise the file descriptor opened.
- */
-int lopen(char *str)
-{
-	ipoint = iepoint = MAXIBUF;
-	
-	if (str==NULL) return(fd=0);
-
-	if ((fd=open(str,0)) < 0)
-        {
-        lwclose(); lfd=1; lpnt=lpbuf; return(-1);
-        }
-
-    setmode(fd, O_BINARY);
-
-	return fd;
-}
+@export
+def lrfill(number) -> None:
+    """ Fill `buffer` with `number` input bytes read from input `fd`. 
     
+        Instead of filling, returns the desired data. Use simple assignment
+        or slice assignment to control the data:
+            
+            So: lrfill(some_buffer, size)
+            becomes: some_buffer = lrfill(size)
+
+            And: lrfill(some_buffer + offset, size)
+            becomes: some_buffer[offset:] = lrfill(size)
+
+    """
+    results = [lgetc() for _ in range(number)]
+    return results
+
+@export
+def lgetw() -> str:
+    """ Get a whitespace ended word from input.
+
+        Returns word, or None if EOF occurs before any characters.
+    """
+    cc = lgetc()
+    in_quotes = False
+    word = []
+
+    while cc and cc.isspace():
+        # Scan forward over whitespace characters
+        cc = lgetc()
+
+    while cc:
+        # Accumulate word. Allow spaces inside "quoted strings."
+        if cc.isspace() and not in_quotes:
+            break
+
+        if cc == '"':
+            in_quotes = not in_quotes
+        else:
+            word.append(cc)
+
+        cc = lgetc()
+
+    word = ''.join(word)
+    return word
+
+@export
+def lgetl() -> str:
+    """ Read in a line terminated by newline (or EOF).
+
+        Returns the line read, or an empty string.
+    """
+
+    line = []
+    ch = lgetc()
+
+    while ch and ch != '\n':
+        line.append(ch)
+        ch = lgetc()
+
+    return ''.join(line)
+
+static()
+Write_fd :int = 0            # output file numbers
+
+@static
+def flush_buf() -> None:
+    """ Flush buffer with decoded output. """
+    if index:
+        if Write_fd == 1:
+            ansiterm.out(outbuf, index)
+        else:
+            write(Write_fd, outbuf, index)
+
+        index = 0
+
+@export
+def lappend(filename: str) -> int:
+    """ Open for append to an existing file.
+
+        lappend(0) means to the terminal (standard output).
+
+        Returns -1 on error, otherwise the file descriptor opened.
+    """
+
+    lpnt = 0
+    lpend = BUFBIG
+
+    if not filename:
+        Write_fd = 1
+
+    else:
+        try:
+            Write_fd = open(filename, os.O_APPEND|os.O_BINARY)
+            os.lseek(Write_fd, 0, os.SEEK_END)
+        except OSError as err:
+            Write_fd = 1
+            lprintf(f"Error opening file <{filename}> for appending\n")
+            lprintf(f"... {str(err)}\n")
+            lflush()
+            return -1
+
+    return Write_fd
+
+@export
+def lcreat(filename: str) -> int:
+    """ Create a new file for writing.
+
+        If filename is empty or none,  opens the terminal (stdout).
+
+        Returns -1 on error, otherwise the file descriptor opened.
+    """
+    global Write_fd
+
+    # TODO: something with these?
+    # lpnt = lpbuf
+    # lpend = lpbuf + BUFBIG
+
+    if not filename:
+        Write_fd = 1
+
+    else:
+        try:
+            Write_fd = os.open(filename, os.O_BINARY|os.O_WRONLY, mode=0o644)
+        except OSError as err:
+            Write_fd = 1
+            lprintf(f"Error creating file <{filename}>\n")
+            lprintf(f"... {str(err)}\n")
+            lflush()
+            return -1
+
+    return Write_fd
+
+scrline = 18
+""" line # for wraparound instead of scrolling if no DL """
+
+@export
+def lflush() -> None:
+    """ Flush the output buffer.
+
+        For termcap version: Flush output in output buffer according to
+        output status as indicated by `enable_scroll`
+    """
+    lpoint :int = lpnt
+
+    if not hasattr(lflush, 'curx'):
+        # static int curx = 0, cury = 0;
+        lflush.curx = lflush.cury = 0
+
+    if lpoint > 0:
+        if EXTRA:
+            c.bytesout += lpoint
+
+        if enable_scroll <= -1:
+            flush_buf()
+
+            # Catch write errors on save files
+            if os.write(Write_fd, lpbuf) != lpoint:
+                warn("Error writing output file\n")
+
+            lpnt = 0
+            lpbuf.clear()
+            return
+
+        it = iter(lpbuf)
+        for ch in it:
+            if ch >= b' ':
+                ttputch(ch)
+                lflush.curx += 1
+            else:
+                # Python has no switch. So if/else here we go!
+                if ch == CLEAR:
+                    tputs(CL);
+                    lflush.curx = 0
+                    lflush.cury = 0
+                elif ch == CL_LINE:
+                    tputs(CE)
+                elif ch == CL_DOWN:
+                    tputs(CD)
+                elif ch == ST_START:
+                    tputs(SO)
+                elif ch == ST_END:
+                    tputs(SE)
+                elif ch == CURSOR:
+                    lflush.curx = next(it) - 1
+                    lflush.cury = next(it) - 1
+                    tputs(atgoto(CM, lflush.curx, lflush.cury))
+                elif ch == b'\n':
+                    if lflush.cury == 23 and enable_scroll:
+                        scrline += 1
+                        if scrline > 23:
+                            scrline = 19
+                        
+                        tputs(atgoto(CM, 0, scrline + 1))
+                        tputs(CE)
+                        
+                        tputs(atgoto(CM, 0, scrline))
+                        tputs(CE)
+                        
+                    else:
+                        ttputch(b'\n')
+                        lflush.cury += 1
+                    
+                    lflush.curx = 0
+                elif ch == T_INIT:
+                    if TI:
+                        tputs(TI)
+                elif ch == T_END:
+                    if TE:
+                        tputs(TE)
+                else:   # default:
+                    ttputch(ch)
+                    lflush.curx += 1
+    lpnt = 0
+    flush_buf()  # flush real output buffer now 
 
 
-/*
- *  lappend(filename)       Open for append to an existing file
- *      char *filename;
- *
- *  lappend(0) means to the terminal
- *  Returns -1 if error, otherwise the file descriptor opened.
- */
-int lappend(char *str)
-{
-    lpnt = lpbuf;   lpend = lpbuf+BUFBIG;
-    if (str==NULL) return(lfd=1);
-    if ((lfd=open(str,2)) < 0)
-        {
-        lfd=1; return(-1);
-        }
+@export
+def lwclose() -> None:
+    """ Close output file, flush if needed. """
+    lflush()
 
-    setmode(lfd, O_BINARY);
-
-    lseek(lfd,0L,2);    /* seek to end of file */
+    if Write_fd > 2:
+        os.close(Write_fd)
+        Write_fd = 1
     
-	return lfd;
-}
+@export
+def lopen(filename) -> int:
+    """ Open a file for reading.
 
+        lopen(0) means from the terminal
 
+        Returns -1 if error, otherwise the file descriptor opened.
+    """
+    global ipoint, iepoint
+    ipoint = iepoint = MAXIBUF
 
-/*
- *  lrclose()                       close the input file
- *
- *  Returns nothing of value.
- */
-void lrclose(void)
-{
+    if not filename:
+        fd = 0
+       
+    else:
+        try:
+            fd = os.open(filename, os.O_RDONLY|os.O_BINARY)
+        except OSError as err:
+            # NOTE: This also redirects Write_fd, the output fd.
+            lwclose()
+            Write_fd = 1
+            lpnt = 0
+            lprintf(f"Error opening file <{filename}> for reading\n")
+            lprintf(f"... {str(err)}\n")
+            lflush()
+            return -1
 
-	if (fd > 0) {
-		
-		close(fd);
-	}
-}
-
+    return fd
     
+@export
+def lrclose() -> None:
+    """ Close the input file. """
 
-/*
- *  lwclose()                       close output file flushing if needed
- *
- *  Returns nothing of value.
- */
-void lwclose(void)
-{
-	lflush();
-	
-	if (lfd > 2) {
-		
-		close(lfd);
-	}
-}
+    if fd > 0:
+        os.close(fd)
+        fd = 0
+
+@export
+def lprcat(string: str) -> None:
+    """ Append a string to the output buffer. 
+
+        Avoid calls to lprintf (time consuming).
+    """
+    global lpbuf, lpnt
+
+    if lpnt >= lpend:
+        lflush()
     
+    lpbuf[lpnt:] = ""
+    lpbuf += string
+    lpnt = len(lpbuf)
+
+
+@export
+def cursor(col:int, line:int) -> None:
+    """ Put cursor at x,y coordinates, starting at 1,1 (ala termcap). """
+
+    if lpnt >= lpend:
+        lflush()
+
+    lpbuf += bytearray([CURSOR, col, line])
+    lpnt = len(lpbuf)
+
+@export
+def cursors() -> None:
+    """ Position cursor at beginning of 24th line. """
+    cursor(1, 24)
+
+
+## NOTE: This is a copy of a C comment at this point. It makes little sense:
+
+# Warning: ringing the bell is control code 7. Don't use in defines.
+# Don't change the order of these defines.
+# Also used in helpfiles. Codes used in helpfiles should be \E[1 to \E[7 with
+# obvious meanings.
+
+static()
+outbuf = None
+""" Translated output buffer """
+
+#
+# ANSI control sequences
+#
+
+ESC = '\N{ESCAPE}'
+CE = ESC +  "[K"
+""" Clear to end of line """
+
+CD = None
+""" clear to end of display (apparently unimplemented/unsupported)"""
+
+CL = ESC + "[;H" + ESC + "[2J"
+""" clear screen """
+
+CM = ESC + "[%i%2;%2H"
+""" cursor motion """
+
+static()
+AL = ESC + "[L"
+""" insert line """
+
+static()
+DL = ESC + b'[M'
+""" delete line """
+
+static()
+SO = ESC + b'[1m'
+""" begin standout mode """
+
+static()
+SE = ESC + b'[m'
+""" end standout mode """
+
+static()
+TI = ESC + b'[m'
+""" terminal initialization """
+
+static()
+TE = ESC + b'[m'
+""" terminal end """
+
+@export
+def init_term() -> None:
+    """ Terminal initialization """
+    outbuf = bytearray()
+    ansiterm.init()
+
+@export 
+def cl_line(col:int, line:int) -> None:
+    """ Clear the whole line indicated by 'line' and leave cursor at 
+        col,line.
+    """
+    cursor(1, line)
+    lpbuf += CL_LINE
+    lpnt = len(lpbuf)
+    cursor(col, line)
+
+@export
+def cl_up(col, line) -> None:
+    """ Clear screen from [col, 1] to current position. Leave cursor at
+        [col, line].
+
+        FIXME: The description does not match the code.
+    """
+    cursor(1, 1)
     
-
-/*
- *  lprcat(string)                  append a string to the output buffer
- *                                  avoids calls to lprintf (time consuming)
- */
-void lprcat(char *str)
-{
-	char *str2;
-	
-	if (lpnt >= lpend) {
-		
-		lflush();
-	}
-	
-	str2 = lpnt;
-	
-	while ((*str2++ = *str++) != '\0') 
-		;
-	
-	lpnt = str2 - 1;
-}
-
-
-
-/*
- * cursor(x,y)    Put cursor at specified coordinates staring at [1,1] (termcap)
- */
-void cursor(int x, int y)
-{
-	
-	if (lpnt >= lpend) {
-		
-		lflush ();
-	}
-
-	*lpnt++ = CURSOR;
-	*lpnt++ = x;
-	*lpnt++ = y;
-}
-
-
-
-/*
- *  Routine to position cursor at beginning of 24th line
- */
-void cursors(void)
-{
-
-	cursor(1, 24);
-}
-
-
-
-/*
- * Warning: ringing the bell is control code 7. Don't use in defines.
- * Don't change the order of these defines.
- * Also used in helpfiles. Codes used in helpfiles should be \E[1 to \E[7 with
- * obvious meanings.
- */
-
-/* translated output buffer */
-static char *	outbuf = NULL;  
-
-    
-/*
- * ANSI control sequences
- */
-
-/* clear to end of line */
-static const char CE[] = {27, '[', 'K', 0};
-
-/* clear to end of display */
-static char *CD = NULL; 
-
-/* clear screen */
-static const char CL[] = {27, '[', ';', 'H', 27, '[', '2', 'J', 0};
-
-/* cursor motion */
-static const char CM[] = {27, '[', '%', 'i', '%', '2', ';', '%', '2', 'H', 0};
-
-/* insert line */
-static const char AL[] = {27, '[', 'L', 0};
-
-/* delete line */
-static const char DL[] = {27, '[', 'M', 0};
-
-/* begin standout mode */
-static const char SO[] = {27, '[', '1', 'm', 0};
-
-/* end standout mode */
-static const char SE[] = {27, '[', 'm', 0};
-
-/* terminal initialization */
-static const char TI[] = {27, '[', 'm', 0};
-
-/* terminal end */
-static const char TE[] = {27, '[', 'm', 0};
-
-
-
-
-static void	ttputch(int);
-    
-    
-/*
- * init_term()      Terminal initialization
- */
-void init_term(void)
-{
-
-	/* get memory for decoded output buffer*/
-	outbuf = malloc(BUFBIG + 16);
-	
-	if (outbuf == NULL) {
-
-		write(2, "Error malloc'ing memory for decoded" 
-			" output buffer\n", 50);
-
-		/* malloc() failure */
-		died(-285); 
-        }
-	
-	ansiterm_init();
-}
-
-
-/*
- * cl_line(x,y)  Clear the whole line indicated by 'y' and leave cursor at [x,y]
- */
-void cl_line(int x, int y)
-{
-
-	cursor(1, y);
-	
-	*lpnt++ = CL_LINE;
-
-	cursor(x,y);
-}
-
-
-
-/*
- * cl_up(x,y) Clear screen from [x,1] to current position. Leave cursor at [x,y]
- */
-void cl_up(int x, int y)
-{
-	int i;
-	
-	cursor(1, 1);
-	
-	for (i = 1; i <= y; i++) {
-		
-		*lpnt++ = CL_LINE;
-		*lpnt++ = '\n';
-	}
-	
-	cursor(x,y);
-}
-
-
-
-
-/*
- * cl_dn(x,y)   Clear screen from [1,y] to end of display. Leave cursor at [x,y]
- */
-void cl_dn(int x, int y)
-{
-	int i;
-	
-	cursor(1, y);
-	
-	if (CD == NULL) {
-
-		*lpnt++ = CL_LINE;
-		
-		for (i=y; i<=24; i++) {
-			
-			*lpnt++ = CL_LINE;
-			
-			if (i!=24) *lpnt++ = '\n';
-		}
-		
-		cursor(x,y);
-
-        } else {
-		
-		*lpnt++ = CL_DOWN;
-	}
-    
-	cursor(x,y);
-}
-
-
-
-/*
- * lstandout(str)    Print the argument string in inverse video (standout mode).
- */
-void lstandout(char *str)
-{
-
-	*lpnt++ = ST_START;
-	
-	while (*str) {
-
-		*lpnt++ = *str++;
-	}
-		
-	*lpnt++ = ST_END;
-}
-
-
+    for i in range(line):
+        lpbuf += CL_LINE + b'\n'
 
     
-/*
- * set_score_output()   Called when output should be literally printed.
- */
-void set_score_output(void)
-{
+    cursor(col, line)
 
-	enable_scroll = -1;
-}
+@export
+def cl_dn(col, line) -> None:
+    """ Clear screen from [1, y] to end of display. Leave cursor at 
+        [col, line].
+    """
+    cursor(1, line)
     
+    if not CD:
+        lpbuf += b'\n'.join([CL_LINE] * (26 - y))
+        cursor(col, line)
+    else:
+        lpbuf += CL_DOWN
+    
+    cursor(col, line)
+
+
+@export
+def lstandout(string:str) -> None:
+    """ Print the argument string in inverse video (standout mode). """
+    
+    lpbuf += ST_START
+    lpbuf += string.encode("utf-8")
+    lpbuf += ST_END
+    lpnt = len(lpbuf)
+
+
+@export
+def set_score_output() -> None:
+    """ Called when output should be literally printed. """
+    global enable_scroll
+    enable_scroll = -1
     
 
-/*
- *  lflush()                        Flush the output buffer
- *
- *  Returns nothing of value.
- *  for termcap version: Flush output in output buffer according to output
- *                       status as indicated by `enable_scroll'
- */
-static int scrline=18; /* line # for wraparound instead of scrolling if no DL */
+static()
+index :int = 0
 
+@static
+def ttputch(ch:int) -> None:
+    """ Print one character in decoded output buffer. """
 
-void lflush(void)
-{
-	int lpoint;
-	char *str;
-	static int curx = 0;
-	static int cury = 0;
+    outbuf.append(ch)
+    if len(outbuf) >= BUFBIG:
+        flush_buf()
 
-    if ((lpoint = lpnt - lpbuf) > 0)
-        {
-#ifdef EXTRA
-        c[BYTESOUT] += lpoint;
-#endif
-        if (enable_scroll <= -1) {
-            flush_buf();
-		
-            /* Catch write errors on save files
-             */
-                if (write(lfd,lpbuf,lpoint) != lpoint) {
-                        warn("Error writing output file\n");
-                }
+@static
+def tputs(cp: str) -> None:
+    """ Output string pointed to by cp. """
+    if not cp:
+        return
 
-	
-            lpnt = lpbuf;   /* point back to beginning of buffer */
-            return;
-        }
-        for (str = lpbuf; str < lpnt; str++)
-            {
-            if (*str>=32)   { ttputch (*str); curx++; }
-            else switch (*str) {
-                case CLEAR:     tputs (CL);     curx = cury = 0;
-                                break;
-
-                case CL_LINE:   tputs (CE);
-                                break;
-
-                case CL_DOWN:   tputs (CD);
-                                break;
-
-                case ST_START:  tputs (SO);
-                                break;
-
-                case ST_END:    tputs (SE);
-                                break;
-
-                case CURSOR:    curx = *++str - 1;      cury = *++str - 1;
-                                tputs (atgoto (CM, curx, cury));
-                                break;
-
-                case '\n':      
-				if ((cury == 23) && enable_scroll) {
-					  
-					if (++scrline > 23) {
-						
-						scrline=19;
-					}
-					
-					tputs (atgoto (CM, 0, scrline + 1));
-					tputs (CE); 
-					
-					tputs (atgoto (CM, 0, scrline));
-					tputs (CE);
-					
-				} else {
-					
-					ttputch ('\n');
-					cury++;
-				}
-				
-                                curx = 0;
-                                break;
-	
-                case T_INIT:
-                    if (TI)
-                        tputs(TI);
-                    break;
-                case T_END:
-                    if (TE)
-                        tputs(TE);
-                    break;
-                default:
-                    ttputch (*str);
-                    curx++;
-                }
-            }
-        }
-    lpnt = lpbuf;
-    flush_buf();    /* flush real output buffer now */
-}
+    for ch in cp:
+        ttputch(ch)
 
 
 
-static int index=0;
+@export
+def lflushall() -> None:
+    """ Flush all type-ahead in the input buffer. """
+    while kbhit():
+        getch()
+
+
+@export
+def tmcapcnv(sd: str, ss: str) -> str:
+    """ Convert VT100 escapes to termcap format.
+
+        Processes only the ESC-[#m sequence (converts . files for termcap
+        use)
+    """
+
+    tmstate :int = 0    # 0 = normal, 1=\33 2=[ 3=# 
+    tmdigit :int = 0    # the '#' in ESC[#m
+
+    sd = ""
+
+    for ch in ss:
+        if tmstate == 0:
+            if ch == ESC:
+                tmstate += 1
+            else:
+                sd += ch     # ign:
+                tmstate = 0  # ign2:
+
+        elif tmstate == 1:
+            if ch == '[':
+                tmstate += 1
+            else:
+                sd += ch
+                tmstate = 0
+
+        elif tmstate == 2:
+            if ch.isdigit():
+                tmdigit = ord(ch) - ord('0')
+                tmstate += 1
+            else:
+                sd += ST_END if ch == 'm' else ch
+                tmstate = 0
+
+        elif tmstate == 3:
+            if ch == 'm':
+                sd += ST_START if tmdigit else ST_END
+            else:
+                sd += ch
+
+            tmstate = 0
+        else:
+            sd += ch
+            tmstate = 0
+
+    return sd
+
+
+@static
+def warn(msg:str) -> None:
+    print(msg, file=sys.stderr)
+
+
+@export
+def enter_name() -> None:
+    """  Prompt user for a name. """
+
+    lprcat("\n\nEnter character name:\n")
+    sncbr()
+
+    global logname
+    logname = ""
+
+    while len(logname) < LOGNAMESIZE - 1:
+        ch = ttgetch()
+        if ch == '\n':
+            break
+        logname += ch
+
+    scbr()
+
+
+@export 
+def select_sex() -> None:
+    """ Prompt user for character's sex. """
+
+    lprcat("\n\nSelect character sex (0=female,1=male):\n")
+    sncbr()
+    ch = ttgetch()
     
-/*
- * ttputch(ch)      Print one character in decoded output buffer.
- */
-static void ttputch(int c)
-{
+    if ch == '0':
+        sex = 0
+    else:
+        sex = 1
 
-	outbuf[index++] = c;
-	
-	if (index >= BUFBIG) {
-		
-		flush_buf();
-	}
-}
-
-
-
-/*
- * Outputs string pointed to by cp
- */
-static void tputs(const char *cp)
-{
-
-	if (cp == NULL) {
-
-		return;
-	} 
-
-	while (*cp != '\0') {
-
-		ttputch(*cp++);
-	}
-}
-
-
-
-/*
- * flush_buf()          Flush buffer with decoded output.
- */
-static void flush_buf(void)
-{
-    if (index) {
-	    
-	if (lfd == 1) {
-	
-		ansiterm_out(outbuf, index);
-
-	} else {
-		
-		write(lfd, outbuf, index);
-	}
-    }
-
-    index = 0;
-}
-
-
-
-
-/*
- *  flushall()  Function to flush all type-ahead in the input buffer
- */
-void lflushall(void)
-{
-
-	while (kbhit()) {
-	    
-		getch();
-	}
-}
-
-
-
-
-
-
-
-/*
- *  char *tmcapcnv(sd,ss)  Routine to convert VT100 escapes to termcap format
- *
- *  Processes only the \33[#m sequence (converts . files for termcap use 
- */
-char * tmcapcnv(char *sd, char *ss)  
-{
-	int tmstate=0; /* 0=normal, 1=\33 2=[ 3=# */
-	char tmdigit=0; /* the # in \33[#m */
-
-    while (*ss)
-        {
-        switch(tmstate)
-            {
-            case 0: if (*ss=='\33')  { tmstate++; break; }
-              ign:  *sd++ = *ss;
-              ign2: tmstate = 0;
-                    break;
-            case 1: if (*ss!='[') goto ign;
-                    tmstate++;
-                    break;
-            case 2: if (isdigit(*ss)) { tmdigit= *ss-'0'; tmstate++; break; }
-                    if (*ss == 'm') { *sd++ = ST_END; goto ign2; }
-                    goto ign;
-            case 3: if (*ss == 'm')
-                        {
-                        if (tmdigit) *sd++ = ST_START;
-                            else *sd++ = ST_END;
-                        goto ign2;
-                        }
-            default: goto ign;
-            };
-        ss++;
-        }
-    *sd=0; /* NULL terminator */
-    return(sd);
-}
-
-
-
-static void warn(char *msg)
-{
-
-    fprintf(stderr, msg);
-}
-
-
-
-void enter_name(void)
-{
-	int c, i;
-	
-	lprcat("\n\nEnter character name:\n");
-	
-	sncbr();
-	
-	i = 0;
-
-	do {
-		int c;
-		
-		c = ttgetch();
-	
-		if (c == '\n') break;
-		
-		logname[i] = c;
-
-	} while (++i < LOGNAMESIZE - 1);
-	
-	logname[i] = '\0';
-	
-	scbr();
-}
-
-
-void select_sex(void)
-{
-	int c;
-	
-	lprcat("\n\nSelect character sex (0=female,1=male):\n");
-	
-	sncbr();
-	
-	c = ttgetch();
-	
-	if (c == '0') {
-		
-		sex = 0;
-		
-	} else {
-		
-		sex = 1;
-	}
-	
-	scbr();
-}
-
-"""
+    scbr()
