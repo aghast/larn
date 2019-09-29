@@ -11,10 +11,12 @@ __all__ = """
     static
 """.strip().split()
 
+T = TypeVar('T')
+
 @overload
 def export(s: str) -> None: ...
 @overload
-def export(cbl: Callable) -> Callable: ...
+def export(func: Callable[..., T]) -> Callable[..., T]: ...
 
 def export(name_or_callable):
     """ Add an objects name to the containing-module's `__all__` variable.
@@ -46,8 +48,8 @@ def export(name_or_callable):
 
     return name_or_callable
 
-def static(cbl: Callable) -> Callable:
+def static(decl: T) -> T:
     """ Indicate an object is static by *not* adding it to `__all__`.
     """
-    return cbl
+    return decl
 

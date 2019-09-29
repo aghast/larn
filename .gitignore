@@ -8,6 +8,7 @@ __pycache__/
 
 # Virtual Environment
 venv
+.python-version
 
 # C sources copied into Python "larn" directory
 larn/*.c

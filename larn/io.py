@@ -74,32 +74,46 @@ import time
 
 from aghast.util import export, static
 
-from .ansiterm import *
+import larn.ansiterm as ansiterm
+import larn.globals as globals
+
 from .larncons import *
 from .larndata import *
 from .larnfunc import *
 
-
-fd :int = 0             # input file numbers
-export('fd')            # Used in 2 other places, I believe. diag.c and scores.c
-
-
-static()
 ipoint: int = MAXIBUF
+static('ipoint')
 
-static()
 iepoint: int = MAXIBUF
 """ Input buffering pointers. """
+static('iepoint')
 
-static()
 LINBUFSIZE :int = 128   # size of the lgetw() and lgetl() buffer 
+static('LINBUFSIZE')
 
-static()
 lgetwbuf: List[str]     # LINBUFSIZE
 """ Get line (word) buffer """
+static('lgetwbuf')
 
-static()
-getchfn: Callable[[], int] = None
+lpend: int = 0
+static('lpend')
+
+getchfn: Callable[[], str]
+static('getchfn')
+
+@export
+def setscroll():
+    """ #define setscroll() enable_scroll=1
+    """
+    global enable_scroll
+    enable_scroll = 1
+
+@export
+def resetscroll():
+    """ #define resetscroll() enable_scroll=0
+    """
+    global enable_scroll
+    enable_scroll = 0
 
 @export
 def setupvt100() -> None:
@@ -128,7 +142,7 @@ def ttgetch() -> str:
 
     if EXTRA:
         global c
-        c.bytesin += 1
+        c[BYTESIN] += 1
 
     lflush()        # Be sure output buffer is flushed
     byt = getchfn()
@@ -169,8 +183,8 @@ def newgame() -> None:
         c[i] = 0
     
     global initialtime
-    initialtime = trunc(time.time())
-    srand(initialtime)
+    initialtime = int(time.time())
+    globals.srand(initialtime)
     lcreat(0)        # open buffering for output to terminal 
 
 @export
@@ -190,7 +204,7 @@ def lprintf(format:str, *args: Any) -> None:
         lprc(ch)
 
 @export
-def lprint(longint:int) -> None:
+def lprint(longint: int) -> None:
     """ Send binary integer to output buffer.
 
         +---------+---------+---------+---------+

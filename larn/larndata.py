@@ -130,8 +130,6 @@ lpnt: str = ""
 export('lpnt')
 lpbuf: str = ""
 export('lpbuf')
-lpend: str = ""
-export('lpend')
 inbuffer: str = ""
 export('inbuffer')
 
@@ -165,7 +163,7 @@ export('levelname')
 objnamelist: List[char] = []
 export('objnamelist')
 
-logname: str = []
+logname: str = ''
 export('logname')
 
 
@@ -248,8 +246,9 @@ wisid: int
 export('wisid')
 lfd: int
 export('lfd')
-fd: int = 0
-export('fd')
+fd: int = 0             # input file numbers 
+export('fd')            # Used in 2 other places, I believe. diag.c and scores.c
+
 initialtime: long
 export('initialtime')
 outstanding_taxes: long
@@ -262,8 +261,6 @@ c: List[long] = []
 export('c')
 cbak: List[long] = []
 export('cbak')
-lrandx: unsigned_long = 0
-export('lrandx')
 cell: List[struct_cel] = []
 export('cell')
 spheres: struct_sphere

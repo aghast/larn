@@ -3,7 +3,7 @@
     Constants.
 """
 
-EXTRA: bool = True      # This was an optional preprocessor directive in C src
+from .config import *
 
 PATCHLEVEL: int = 0
 
@@ -28,10 +28,6 @@ KNOWALL: int =    (HAVESEEN | KNOWHERE)
 PATHLEN: int =    80
 
 LARNHOME: str =  ""
-
-# ifndef WIZID
-WIZID: int = 1000
-# endif
 
 # I'll just use the Python builtins, thanks.
 #define TRUE 1

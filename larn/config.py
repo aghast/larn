@@ -8,7 +8,10 @@
 """
 from aghast.util import export
 
-WIZID: int = 0      # #define WIZID 0
+EXTRA: bool = False   # #define EXTRA 0
+export('EXTRA')
+
+WIZID: int = 1000        # #define WIZID 0
 export('WIZID')
 
 #
