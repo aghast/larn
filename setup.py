@@ -1,6 +1,9 @@
 import setuptools
 import textwrap
 
+#import pprint
+#pprint.pprint(setup)
+
 requirements_dev = """
 """.strip().split()
 
@@ -42,5 +45,3 @@ setuptools.setup(
     keywords='larn rogue-like',
 )
 
-#import pprint
-#pprint.pprint(setup)
