@@ -103,17 +103,6 @@ export('iven')
 
 
 
-inbuffer: str = ""
-export('inbuffer')
-
-nomove: signed_char = 0
-export('nomove')
-
-
-
-
-restorflag: signed_char = 0
-export('restorflag')
 screen: List[List[signed_char]] = [[0]*MAXY for _ in range(MAXX)]
 export('screen')
 
@@ -126,8 +115,6 @@ ivenarg: List[short] = []
 export('ivenarg')
 yrepcount: int
 export('yrepcount')
-userid: int
-export('userid')
 wisid: int
 export('wisid')
 lfd: int
@@ -139,16 +126,6 @@ export('fd')            # Used in 2 other places, I believe. diag.c and scores.c
 dnd_item: List[struct_itm] = []
 export('dnd_item')
 
-
-#/*
-# * main.c
-# */
-rmst: int = 0
-export('rmst')
-dropflag: int = 0
-export('dropflag')
-save_mode: int = 0
-export('save_mode')
 
 
 #/*

@@ -86,6 +86,10 @@ lpnt = 0  # type: int
 """ char *lpbuf,*lpnt,*inbuffer,*lpend; /* input/output pointers to the buffers */
 """
 export('lpnt')
+inbuffer = None  # type: Optional[bytearray]
+""" char *lpbuf,*lpnt,*inbuffer,*lpend; /* input/output pointers to the buffers */
+"""
+export('inbuffer')
 lpend = 0  # type: int
 """ char *lpbuf,*lpnt,*inbuffer,*lpend; /* input/output pointers to the buffers */
 """
