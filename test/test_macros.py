@@ -4,26 +4,25 @@ import textwrap
 
 import larn
 
-funcnames = textwrap.dedent("""
-    newscroll
-    newpotion
-    newleather
-    newchain
-    newplate
-    newdagger
-    newsword
-    forget
-    disappear
-    setbold
-    resetbold
-    setscroll
-    resetscroll
-    clear
-    cltoeoln
-    srand
-""".strip()).splitlines()
+def test_exported_names():
+    funcnames = textwrap.dedent("""\
+        newscroll
+        newpotion
+        newleather
+        newchain
+        newplate
+        newdagger
+        newsword
+        forget
+        disappear
+        setbold
+        resetbold
+        setscroll
+        resetscroll
+        clear
+        cltoeoln
+        srand
+    """).splitlines()
 
-for name in funcnames:
-    assert name in globals()
-
-
+    for name in funcnames:
+        assert name in dir(larn)

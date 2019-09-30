@@ -13,6 +13,9 @@ venv
 # C sources copied into Python "larn" directory
 larn/*.c
 
+# VIM tags file
+tags
+
 # Distribution / packaging
 .Python
 env/
