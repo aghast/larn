@@ -6,12 +6,16 @@
      *
      */
 """
+from typing import Any
+
 from aghast.util import export
 
+from .data import *
 from .globals import rund
+from .larncons import *
 
 @export
-def newscroll() -> Any:
+def newscroll() -> int:
     """
         /* macro to create scroll #'s with probability of occurrence */
         #define newscroll() (scprob[rund(81)])
@@ -19,7 +23,7 @@ def newscroll() -> Any:
     return scprob[rund(81)]
 
 @export
-def newpotion() -> Any:
+def newpotion() -> int:
     """
         /* macro to return a potion # created with probability of occurrence */
         #define newpotion() (potprob[rund(41)])
@@ -27,7 +31,7 @@ def newpotion() -> Any:
     return potprob[rund(41)]
 
 @export
-def newleather() -> Any:
+def newleather() -> int:
     """
         /* macro to return the + points on created leather armor */
         #define newleather() (nlpts[rund(c[HARDGAME]?13:15)])
@@ -36,7 +40,7 @@ def newleather() -> Any:
     return nlpts[rund(limit)]
 
 @export
-def newchain() -> None:
+def newchain() -> int:
     """
         /* macro to return the + points on chain armor */
         #define newchain() (nch[rund(10)])
@@ -44,7 +48,7 @@ def newchain() -> None:
     return nch[rund(10)]
 
 @export
-def newplate() -> None:
+def newplate() -> int:
     """
         /* macro to return + points on plate armor */
         #define newplate() (nplt[rund(c[HARDGAME]?4:12)])
@@ -53,7 +57,7 @@ def newplate() -> None:
     return nplt[rund(limit)]
 
 @export
-def newdagger() -> None:
+def newdagger() -> int:
     """
         /* macro to return + points on new daggers */
         #define newdagger() (ndgg[rund(13)])
@@ -61,7 +65,7 @@ def newdagger() -> None:
     return ndgg[rund(13)]
 
 @export
-def newsword() -> None:
+def newsword() -> int:
     """
         /* macro to return + points on new swords */
         #define newsword() (nsw[rund(c[HARDGAME]?6:13)])
@@ -75,6 +79,8 @@ def forget() -> None:
         /* macro to destroy object at present location */
         #define forget() (item[playerx][playery]=know[playerx][playery]=0)
     """
+    assert item is not None
+    assert know is not None
     item[playerx][playery] = know[playerx][playery] = 0
 
 @export
@@ -83,6 +89,8 @@ def disappear(x,y) -> None:
         /* macro to wipe out a monster at a location */
         #define disappear(x,y) (mitem[x][y]=know[x][y]=0)
     """
+    assert mitem is not None
+    assert know is not None
     mitem[x][y] = know[x][y] = 0
 
 @export
@@ -126,7 +134,7 @@ def clear() -> None:
         #define clear() (*lpnt++ =CLEAR, regen_bottom=TRUE)
     """
     #*lpnt++ = CLEAR
-    regen_bottom = TRUE
+    regen_bottom = True
 
 @export
 def cltoeoln() -> None:

@@ -36,7 +36,7 @@
 
 from aghast.util import export, static
 
-lrandx: int = 33601
+lrandx = 33601  # type: int
 
 @export
 def rund(x: int) -> int:
@@ -53,7 +53,7 @@ def rnd(x: int) -> int:
 
 @export
 def srand(x: int) -> None:
-    lrandx = x & 0xFFFF_FFFF
+    lrandx = x & 0xFFFFFFFF
 
 
 """
